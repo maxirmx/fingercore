@@ -4,7 +4,7 @@
  *
  * Reference to external document with database model
  * 
- * @category КНОПОМ
+ * @category fingerprint
  * @package fingercore
  * @subpackage main
  * @version 00.01.00
@@ -270,7 +270,8 @@ __SQL__
         $visit = $this->doSearch("SELECT unixtime, chatid FROM Visits WHERE fingerprint ='$finger' ORDER BY unixtime ASC LIMIT 1", true);
         if (count($visit) == 0) {
           $this->debugOutput("fingerprint $finger was not found");
-          $this->doExec("INSERT INTO Visits (fingerprint, chatid, unixtime) VALUES ('$finger', '$chatid', strftime ('%s', 'now'))");
+          $now = time();
+          $this->doExec("INSERT INTO Visits (fingerprint, chatid, unixtime) VALUES ('$finger', '$chatid', $now)");
           $res = array("ret"=>WDb::RWD_OK, "allow"=>true, "exist"=>false, "wait"=>0);
         }
         else if ($chatid == $visit[0][1]) {
@@ -286,7 +287,7 @@ __SQL__
      }
      catch (PDOException $e) {
        $this->pdoError($e);
-       $res = array("ret"=>WDb::RWD_DB_ERROR, "allow"=>false, "exist"=>false, "wait"=>0);
+       $res = array("ret"=>WDb::RWD_DB_ERROR, "allow"=>true, "exist"=>false, "wait"=>0);
      }
      return $res;
     }    // WDb::Query
@@ -340,6 +341,5 @@ __SQL__
    {
      return "00.01.0";
    }    // WDb::showScriptVersion
-
  }      // Class WDb
 ?>

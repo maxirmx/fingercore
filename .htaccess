@@ -1,0 +1,16 @@
+Options -Indexes
+
+<Files .htaccess>
+order deny,allow
+deny from all
+</Files>
+
+<Files fingercore.ini>
+order deny,allow
+deny from all
+</Files>
+
+<Files data>
+order deny,allow
+deny from all
+</Files>

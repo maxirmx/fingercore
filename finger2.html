@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="win-1251">
+    <title>Fingerprinting</title>
+    <script src="clientjs/client.base.min.js"></script>
+</head>
+<body>
+
+<h2>Fingerprint test</h2>
+
+ѕри переходе по ссылке ниже имитируетс€ запрос сервиса.<br/>
+ƒоступ к сервису из одного браузера разрешЄн не чаще, чем раз в 30 секунд.<br/>
+≈сли обновл€ть страницу, это будет имитаци€ переприсоединени€ к существующему чату.<br/>
+„тобы увидеть блокировку нужно сходить по ссылке "туда-обратно".<br/>
+
+<p><a href="#" id="fingerquery">«апрос сервиса</a></p>
+
+<script>
+    function randomString(length) {
+        var chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghiklmnopqrstuvwxyz'.split('');
+
+        if (!length) {
+            length = Math.floor(Math.random() * chars.length);
+        }
+
+        var str = '';
+        for (var i = 0; i < length; i++) {
+            str += chars[Math.floor(Math.random() * chars.length)];
+        }
+        return str;
+    }
+
+    const ClientJS = window.ClientJS;
+    // Create a new ClientJS object
+    const client = new ClientJS();
+
+    // Get the client's fingerprint id
+    const fingerprint = client.getFingerprint();
+
+    // Print the 32bit hash id to the console
+    console.log(fingerprint);
+
+    document.getElementById("fingerquery").href="fingerquery.php?finger=" + fingerprint + "&chatid=" + randomString(16);
+
+</script>
+
+</body>
+</html>

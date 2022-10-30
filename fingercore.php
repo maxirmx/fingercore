@@ -153,7 +153,7 @@ protected static $pv = '00.03.00';
      if ($ini && $ini["database"]["path"] != NULL)   { $this->db = "sqlite:" . $ini["database"]["path"]; }
      if ($ini && $ini["database"]["create"] != NULL) { $this->create = $ini["database"]["create"]; }
      if ($ini && $ini["visit"]["protect"] != NULL)   { $this->protect = intval($ini["visit"]["protect"]); }
-     if ($ini && $ini["visit"]["reconnect"] != NULL)   { $this->protect = intval($ini["visit"]["reconnect"]); }
+     if ($ini && $ini["visit"]["reconnect"] != NULL)   { $this->reconnect = intval($ini["visit"]["reconnect"]); }
 
      $this->debugOutput("Database: path='" . $this->db . "' create=" .  $this->create);
      $this->debugOutput("Visit: protect=" . $this->protect . " reconnect=" .  $this->reconnect);
@@ -280,30 +280,30 @@ __SQL__
           $this->debugOutput("fingerprint $finger was not found");
           $now = time();
           $this->doExec("INSERT INTO Visits (fingerprint, chatid, unixtime) VALUES ('$finger', '$chatid', $now)");
-          $res = array("ret"=>WDb::RWD_OK, "allow"=>true, "exist"=>false, "reconnect" => NULL, "wait"=>0);
+          $res = array("ret"=>WDb::RWD_OK, "allow"=>true, "exist"=>false, "wait"=>0);
         }
         else if ($chatid == $visit[0][1]) {
           $this->debugOutput("fingerprint $finger was found with matching chatid $chatid");
-          $res = array("ret"=>WDb::RWD_OK, "allow"=>true, "exist"=>true, "reconnect" => NULL, "wait"=>0);
+          $res = array("ret"=>WDb::RWD_OK, "allow"=>true, "exist"=>true, "wait"=>0);
         }
         else {
-          $r = $visit[0][0] + $this->reconnect;
-          if ($r > time()) {
+          $w = $visit[0][0] + $this->protect - time();
+          $r = $visit[0][0] + $this->reconnect - time();
+          if ($r > 0) {
             $this->debugOutput("fingerprint $finger was found without matching chatid, reconnect is allowed");
-            $this->debugOutput("time-to-wait $w");
-            $res = array("ret"=>WDb::RWD_OK, "allow"=>false, "exist"=>false, "reconnect" => $visit[0][1], "wait"=>$w);
+            $this->debugOutput("time-to-wait $w, time-to-reconnect $r");
+            $res = array("ret"=>WDb::RWD_OK, "allow"=>false, "exist"=>false, "oldchatid"=>$visit[0][1], "wait"=>$w, "reconnect"=>$r);
           }
           else {
             $this->debugOutput("fingerprint $finger was found without matching chatid");
-            $w = $visit[0][0] + $this->protect - time();
             $this->debugOutput("time-to-wait $w");
-            $res = array("ret"=>WDb::RWD_OK, "allow"=>false, "exist"=>false, "reconnect" => NULL, "wait"=>$w);
+            $res = array("ret"=>WDb::RWD_OK, "allow"=>false, "exist"=>false, "wait"=>$w);
           }
         }
      }
      catch (PDOException $e) {
        $this->pdoError($e);
-       $res = array("ret"=>WDb::RWD_DB_ERROR, "allow"=>true, "exist"=>false, "reconnect" => NULL, "wait"=>0);
+       $res = array("ret"=>WDb::RWD_DB_ERROR, "allow"=>true, "exist"=>false, "wait"=>0);
      }
      return $res;
     }    // WDb::Query

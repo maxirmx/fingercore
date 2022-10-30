@@ -2,17 +2,14 @@
 /**
  * fingercore. Интерфейс к базе данных
  *
- * Reference to external document with database model
- * 
  * @category fingerprint
  * @package fingercore
  * @subpackage main
- * @version 00.01.00
+ * @version 00.03.00
  * @author  Максим Самсонов <maxim@samsonov.net>
  * @copyright  2022 Максим Самсонов, его родственники и знакомые
  * @license    https://github.com/maxirmx/p.samsonov.net/blob/main/LICENSE MIT
  */
-
 
 /**
  * Class C2CBase
@@ -20,8 +17,16 @@
  */
  class C2CBase
  {
+
 /**
- * @static   
+ * @static
+ * Package version
+ */
+protected static $pv = '00.03.00';
+
+
+/**
+ * @static
  * Database handler
  */
    protected static $dbh = NULL;
@@ -29,12 +34,12 @@
 /**
  * Флаг отладочного режима
  */
-   protected $dbg = false;
+   protected $dbg = true;
 
 /**
- * __construct Конструктор  
+ * __construct Конструктор
  *
- * @param bool $dbg  флаг отладочного режима 
+ * @param bool $dbg  флаг отладочного режима
  */
    function __construct($dbg)
    {
@@ -49,7 +54,7 @@
  */
    protected function debugOutput($s)
    {
-    if ($this->dbg === true)  { print $s . (PHP_SAPI==="cli" ? PHP_EOL: '<br/>'); }
+    if ($this->dbg)  { print $s . (PHP_SAPI==="cli" ? PHP_EOL: '<br/>'); }
    }         // C2CBase::debugOutput
 
 /**
@@ -78,10 +83,10 @@
      $r = $q->fetchAll($assoc ? PDO::FETCH_ASSOC : PDO::FETCH_NUM);
      $q->closeCursor();
      if ($r === false) { return false; }
-     else              
-     { 
+     else
+     {
        if ($array === false) { return count($r) == 0 ? false: $r[0][0]; }
-       else                  { return $r;    } 
+       else                  { return $r;    }
      }
    }  // C2CBase::doSearch
 
@@ -106,7 +111,7 @@
  class WDb extends C2CBase
  {
 /**
- * Нет ошибки   
+ * Нет ошибки
  */
    const RWD_OK = 0;
 /**
@@ -115,7 +120,7 @@
    const RWD_E_INVALID_COMMAND  = -1;
 /**
  * Код ошибки: Ошибка формата ответа сервера
- * Используется только внутри клиентских приложений. Здесь приведено для контроля целостности кодов ошибок.    
+ * Используется только внутри клиентских приложений. Здесь приведено для контроля целостности кодов ошибок.
  */
    const RWD_E_INVALID_RESPONSE = -125;       // Used by JavaScript only
 /**
@@ -123,19 +128,20 @@
  */
    const RWD_DB_ERROR  = -126;
 /**
- * Код ошибки: Неспецифицированная ошибка    
+ * Код ошибки: Неспецифицированная ошибка
  */
    const RWD_ERROR = -127;
 
 /**
  *
  */
-   protected $db = 'sqlite:/usr/local/fingercore/db';
+   protected $db = 'sqlite:/var/fingercore/db';
    protected $create = false;
    protected $protect = 7200;  // 60*60*2;
+   protected $reconnect = 1800; // 30*60
 
 /**
- * __construct Конструктор  
+ * __construct Конструктор
  *
  * @param bool $dbg  флаг отладочного режима для инициализации экземпляра класса
  */
@@ -145,21 +151,23 @@
 
      $ini = parse_ini_file("fingercore.ini", true);
      if ($ini && $ini["database"]["path"] != NULL)   { $this->db = "sqlite:" . $ini["database"]["path"]; }
-     if ($ini && $ini["visit"]["protect"] != NULL)   { $this->protect = intval($ini["visit"]["protect"]); }
      if ($ini && $ini["database"]["create"] != NULL) { $this->create = $ini["database"]["create"]; }
+     if ($ini && $ini["visit"]["protect"] != NULL)   { $this->protect = intval($ini["visit"]["protect"]); }
+     if ($ini && $ini["visit"]["reconnect"] != NULL)   { $this->protect = intval($ini["visit"]["reconnect"]); }
 
-     $this->debugOutput("path='" . $this->db . "' protect=" . $this->protect . " create=" .  $this->create);
+     $this->debugOutput("Database: path='" . $this->db . "' create=" .  $this->create);
+     $this->debugOutput("Visit: protect=" . $this->protect . " reconnect=" .  $this->reconnect);
 
    }   // WDb::__construct
 
 /**
- * errorMessage Текстовое сообщение, соотвествующее коду ошибки  
+ * errorMessage Текстовое сообщение, соотвествующее коду ошибки
  *
  * @param int $c  код ошибки
  * @return string текстовое сообщение, соответствующее коду ошибки
  */
    public function errorMessage($c)
-   { 
+   {
      $msg = array (
                      WDb::RWD_ERROR              => 'Unspecified error',
                      WDb::RWD_DB_ERROR           => 'Database error',
@@ -167,7 +175,7 @@
                      WDb::RWD_E_INVALID_RESPONSE => 'Invalid server response',
                      WDb::RWD_OK                 => 'No error'
                    );
-     return $msg[$c]; 
+     return $msg[$c];
    }         // WDb::errorMessage
 
 /**
@@ -179,7 +187,7 @@
  * @return bool true, если таблица есть в схеме БД, false в противном случае
  */
    private function queryTable($s)
-   { 
+   {
        $r = $this->doSearch("SELECT name FROM sqlite_master WHERE type = 'table' AND name = '$s'");
        if ($r === false) { $this->debugOutput("Query table '" . $s . "': does not exist");      }
        else              { $this->debugOutput("Query table '" . $s . "': exists");  $r = true;  }
@@ -187,11 +195,11 @@
    }         // WDb::queryTable
 
 /**
- * queryAllTables проверка наличия всех таблиц в базе данных 
+ * queryAllTables проверка наличия всех таблиц в базе данных
  *
- * Используется только для отладки. 
+ * Используется только для отладки.
  * Функция не обрабатывает исключения. Обработчик должен быть реализован в вызывающем коде.
- *  
+ *
  * @return void
  */
    private function queryAllTables()
@@ -203,7 +211,7 @@
 /**
  * Connect Создание соединения с базой данных.
  *
- * Функция создает соединение с базой данных. 
+ * Функция создает соединение с базой данных.
  *
  * Если база отсуствует и в ini-файле указана необходимость создания базы (секция [database], параметр [create] установлен в true),
  * база создается или при необходимости происходит обновление схемы базы данных до последней версии.
@@ -215,15 +223,15 @@
  */
    public function Connect()
    {
-     try 
+     try
      {
         if (self::$dbh == NULL)
         {
           $this->debugOutput("Opening database file at: " . $this->db);
           self::$dbh = new PDO($this->db);
 
-          if ($this->create) 
-          { 
+          if ($this->create)
+          {
             if ($this->queryTable("Visits") === false) {
                 if ($this->doExec( <<< __SQL__
                       CREATE TABLE IF NOT EXISTS Visits  (
@@ -238,17 +246,17 @@ __SQL__
             if ($this->queryTable("Version") === false) {
                if ($this->doExec( <<< __SQL__
                   CREATE TABLE Version  (
-                       id INTEGER PRIMARY KEY,                             
+                       id INTEGER PRIMARY KEY,
                        version CHAR[16] NOT NULL ON CONFLICT ABORT UNIQUE ON CONFLICT ABORT
                      )
 __SQL__
                   )  === false) { return WDb::RWD_ERROR; }
 
-                 if ($this->doExec("INSERT INTO Version (version) VALUES ('00.02.00')") !=1)  { return WDb::RWD_ERROR; }
+                 if ($this->doExec("INSERT INTO Version (version) VALUES (self::$pv)") !=1)  { return WDb::RWD_ERROR; }
              }
           }
         }
-     }   
+     }
      catch (PDOException $e)
      {
        $this->pdoError($e);
@@ -272,29 +280,37 @@ __SQL__
           $this->debugOutput("fingerprint $finger was not found");
           $now = time();
           $this->doExec("INSERT INTO Visits (fingerprint, chatid, unixtime) VALUES ('$finger', '$chatid', $now)");
-          $res = array("ret"=>WDb::RWD_OK, "allow"=>true, "exist"=>false, "wait"=>0);
+          $res = array("ret"=>WDb::RWD_OK, "allow"=>true, "exist"=>false, "reconnect" => NULL, "wait"=>0);
         }
         else if ($chatid == $visit[0][1]) {
           $this->debugOutput("fingerprint $finger was found with matching chatid $chatid");
-          $res = array("ret"=>WDb::RWD_OK, "allow"=>true, "exist"=>true, "wait"=>0);
+          $res = array("ret"=>WDb::RWD_OK, "allow"=>true, "exist"=>true, "reconnect" => NULL, "wait"=>0);
         }
         else {
-          $this->debugOutput("fingerprint $finger was found without matching chatid");
-          $w = $visit[0][0] + $this->protect - time();
-          $this->debugOutput("time-to-wait $w");
-          $res = array("ret"=>WDb::RWD_OK, "allow"=>false, "exist"=>false, "wait"=>$w);
+          $r = $visit[0][0] + $this->reconnect;
+          if ($r > time()) {
+            $this->debugOutput("fingerprint $finger was found without matching chatid, reconnect is allowed");
+            $this->debugOutput("time-to-wait $w");
+            $res = array("ret"=>WDb::RWD_OK, "allow"=>false, "exist"=>false, "reconnect" => $visit[0][1], "wait"=>$w);
+          }
+          else {
+            $this->debugOutput("fingerprint $finger was found without matching chatid");
+            $w = $visit[0][0] + $this->protect - time();
+            $this->debugOutput("time-to-wait $w");
+            $res = array("ret"=>WDb::RWD_OK, "allow"=>false, "exist"=>false, "reconnect" => NULL, "wait"=>$w);
+          }
         }
      }
      catch (PDOException $e) {
        $this->pdoError($e);
-       $res = array("ret"=>WDb::RWD_DB_ERROR, "allow"=>true, "exist"=>false, "wait"=>0);
+       $res = array("ret"=>WDb::RWD_DB_ERROR, "allow"=>true, "exist"=>false, "reconnect" => NULL, "wait"=>0);
      }
      return $res;
     }    // WDb::Query
 
 
 /**
- * showDatabaseVersion() возвращает версию схемы базы данных. 
+ * showDatabaseVersion() возвращает версию схемы базы данных.
  *
  * Версия берется из таблицы Version. Если таблица Version отсуствует в схеме, подразумевается версия 1.00.00.
  *
@@ -302,11 +318,11 @@ __SQL__
  */
    public function showDatabaseVersion()
    {
-     try 
+     try
      {
-         $r = $this->doSearch("SELECT version FROM Version ORDER BY id DESC LIMIT 1"); 
+         $r = $this->doSearch("SELECT version FROM Version ORDER BY id DESC LIMIT 1");
          return $r;
-     }         
+     }
      catch (PDOException $e)
      {
        $this->pdoError($e);
@@ -315,16 +331,16 @@ __SQL__
    }    // WDb::showDatabaseVersion
 
 /**
- * showSQLiteVersion() возвращает версию клиентской части SQLite. 
+ * showSQLiteVersion() возвращает версию клиентской части SQLite.
  *
  * @return string|int версия клиентской части PDO или код ошибки
  */
    public function showSQLiteVersion()
    {
-     try 
+     try
      {
          return self::$dbh->getAttribute(PDO::ATTR_CLIENT_VERSION);
-     }         
+     }
      catch (PDOException $e)
      {
        $this->pdoError($e);
@@ -333,13 +349,13 @@ __SQL__
    }
 
 /**
- * showScriptVersion() возвращает версию скрипта для взаимодействия с базой данных. 
+ * showScriptVersion() возвращает версию скрипта для взаимодействия с базой данных.
  *
  * @return string версия скрипта
  */
    public function showScriptVersion()
    {
-     return "00.01.0";
+     return self::$pv;
    }    // WDb::showScriptVersion
  }      // Class WDb
 ?>

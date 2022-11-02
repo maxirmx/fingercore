@@ -22,14 +22,14 @@
  * @static
  * Package version
  */
-protected static $pv = '00.03.00';
+  protected static $pv = '00.03.00';
 
 
 /**
  * @static
  * Database handler
  */
-   protected static $dbh = NULL;
+    protected static $dbh = NULL;
 
 /**
  * Флаг отладочного режима
@@ -241,7 +241,7 @@ protected static $pv = '00.03.00';
                            unixtime INTEGER
                         )
 __SQL__
-                      ) === false) { return WDb::RWD_ERROR; }
+                      ) != 0) { return WDb::RWD_ERROR; }
             }
             if ($this->queryTable("Version") === false) {
                if ($this->doExec( <<< __SQL__
@@ -250,9 +250,9 @@ __SQL__
                        version CHAR[16] NOT NULL ON CONFLICT ABORT UNIQUE ON CONFLICT ABORT
                      )
 __SQL__
-                  )  === false) { return WDb::RWD_ERROR; }
+                  )  != 0) { return WDb::RWD_ERROR; }
 
-                 if ($this->doExec("INSERT INTO Version (version) VALUES (self::$pv)") !=1)  { return WDb::RWD_ERROR; }
+                 if ($this->doExec("INSERT INTO Version (version) VALUES ('" . self::$pv . "')") !=1)  { return WDb::RWD_ERROR; }
              }
           }
         }
@@ -272,17 +272,28 @@ __SQL__
  *
  */
    public function Query($finger, $chatid) {
-     try {
+    $scenario = 'U';
+    $this->debugOutput("Query: fingerprint '$finger', chatid '$chatid'");
+    try {
         $w = time() - $this->protect;
         $this->doExec("DELETE FROM Visits WHERE unixtime < '$w'");
         $visit = $this->doSearch("SELECT unixtime, chatid FROM Visits WHERE fingerprint ='$finger' ORDER BY unixtime ASC LIMIT 1", true);
         if (count($visit) == 0) {
           $this->debugOutput("fingerprint $finger was not found");
           $now = time();
-          $this->doExec("INSERT INTO Visits (fingerprint, chatid, unixtime) VALUES ('$finger', '$chatid', $now)");
+          if (!empty($chatid) && $chatid != '0000') {
+            $scenario = 'A';
+            $this->debugOutput("Registering chat with chatid $chatid");
+            $this->doExec("INSERT INTO Visits (fingerprint, chatid, unixtime) VALUES ('$finger', '$chatid', $now)");
+          }
+          else {
+            $scenario = 'B';
+            $this->debugOutput("No chatid has been provided");
+          }
           $res = array("ret"=>WDb::RWD_OK, "allow"=>true, "exist"=>false, "wait"=>0);
         }
         else if ($chatid == $visit[0][1]) {
+          $scenario = 'C';
           $this->debugOutput("fingerprint $finger was found with matching chatid $chatid");
           $res = array("ret"=>WDb::RWD_OK, "allow"=>true, "exist"=>true, "wait"=>0);
         }
@@ -290,11 +301,13 @@ __SQL__
           $w = $visit[0][0] + $this->protect - time();
           $r = $visit[0][0] + $this->reconnect - time();
           if ($r > 0) {
-            $this->debugOutput("fingerprint $finger was found without matching chatid, reconnect is allowed");
+            $scenario = 'D';
+            $this->debugOutput("fingerprint $finger was found without matching chatid, reconnect is allowed to chatid " . $visit[0][1]);
             $this->debugOutput("time-to-wait $w, time-to-reconnect $r");
             $res = array("ret"=>WDb::RWD_OK, "allow"=>false, "exist"=>false, "oldchatid"=>$visit[0][1], "wait"=>$w, "reconnect"=>$r);
           }
           else {
+            $scenario = 'E';
             $this->debugOutput("fingerprint $finger was found without matching chatid");
             $this->debugOutput("time-to-wait $w");
             $res = array("ret"=>WDb::RWD_OK, "allow"=>false, "exist"=>false, "wait"=>$w);
@@ -302,9 +315,11 @@ __SQL__
         }
      }
      catch (PDOException $e) {
-       $this->pdoError($e);
+      $scenario = 'F';
+      $this->pdoError($e);
        $res = array("ret"=>WDb::RWD_DB_ERROR, "allow"=>true, "exist"=>false, "wait"=>0);
      }
+    $res['scenario'] = $scenario;
      return $res;
     }    // WDb::Query
 
@@ -312,7 +327,7 @@ __SQL__
 /**
  * showDatabaseVersion() возвращает версию схемы базы данных.
  *
- * Версия берется из таблицы Version. Если таблица Version отсуствует в схеме, подразумевается версия 1.00.00.
+ * Версия берется из таблицы Version.
  *
  * @return string|int версия схемы базы данных или код ошибки
  */

@@ -15,7 +15,9 @@ $endings = array('минуту', 'минуты', 'минут');
 $finger = $_GET['finger'];
 $chatid = $_GET['chatid'];
 
-$rwd = new WDb(true);
+$debug = false;
+
+$rwd = new WDb($debug);
 $res = $rwd->Connect();
 
 if ($res != WDb::RWD_OK)
@@ -24,33 +26,43 @@ if ($res != WDb::RWD_OK)
 }
 else
 {
+  if ($debug) {
+    print "<p>";
+    $v = $rwd->showSQLiteVersion();
+    print "<br/>SQLite version: $v";
+    $v = $rwd->showScriptVersion();
+    print "<br/>Script version: $v";
+    $v = $rwd->showDatabaseVersion();
+    print "<br/>Database version: $v";
+    print "</p>";
+  }
 
   print "<p>";
-  $v = $rwd->showSQLiteVersion();
-  print "<br/>SQLite version: $v";
-  $v = $rwd->showScriptVersion();
-  print "<br/>Script version: $v";
-  $v = $rwd->showDatabaseVersion();
-  print "<br/>Database version: $v";
+  print "<br/>Ваш уникальный идентификатор: $finger";
+  $res = $rwd->Query($finger, $chatid);
+  $scenario=$res["scenario"];
+  print "<br/>Used fingercore scenario: '$scenario'";
   print "</p>";
 
-  print "<br/>Ваш уникальный идентификатор: $finger <br/>";
-
-  $res = $rwd->Query($finger, $chatid);
   $ret = $res["ret"];
   if ($ret != WDb::RWD_OK) {
     print "<br/>Внутренняя ошибка:" . $rwd->errorMessage($ret) . " ($ret) <br />";
   }
   elseif ($res["allow"]) {
-    if ($res["exist"])  print "<br/>Сервис разрешён. Присоединение к существующему чату $chatid.<br/>";
-    else                print "<br/>Сервис разрешён. Новый чат $chatid.<br/>";
+    if (!empty($chatid)) {
+      if ($res["exist"])  print "<br/>Сервис разрешён. Присоединение к существующему чату $chatid.<br/>";
+      else                print "<br/>Сервис разрешён. Новый чат $chatid.<br/>";
+    }
+    else {
+      print "<br/>Сервис разрешён. Возможно создание нового чата.";
+    }
   }
   else {
     $wait = floor($res["wait"]/60);
     $e = getNumEnding($wait, $endings);
     print "<br/>Сервис запрещён. Нужно подождать $wait $e .<br/>";
-    $oldchaid = $res["oldchatid"];
-    if (!is_null($oldchatid)) {
+    $oldchatid = $res["oldchatid"];
+    if (!empty($oldchatid)) {
       $r  = floor($res["reconnect"]/60);
       $e = getNumEnding($r, $endings);
       print "<br/>Возможно присоединение к существующему чату $oldchatid в течение $r $e.<br/>";

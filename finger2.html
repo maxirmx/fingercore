@@ -14,7 +14,8 @@
 ≈сли обновл€ть страницу, это будет имитаци€ переприсоединени€ к существующему чату.<br/>
 „тобы увидеть блокировку нужно сходить по ссылке "туда-обратно".<br/>
 
-<p><a href="#" id="fingerquery">«апрос сервиса</a></p>
+<p><a href="#" id="fingerquery">«апрос сервиса</a>
+<br/><a href="#" id="fingerxhr">»митаци€ AJAX</a></p>
 
 <script>
     function randomString(length) {
@@ -42,6 +43,7 @@
     console.log(fingerprint);
 
     document.getElementById("fingerquery").href="fingerquery.php?finger=" + fingerprint + "&chatid=" + randomString(16);
+    document.getElementById("fingerxhr").href="fingerxhr.php?finger=" + fingerprint + "&chatid=" + randomString(16);
 
 </script>
 

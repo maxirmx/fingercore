@@ -36,7 +36,6 @@ else
     print "<br/>Database version: $v";
     print "</p>";
   }
-
   print "<p>";
   print "<br/>Ваш уникальный идентификатор: $finger";
   $res = $rwd->Query($finger, $chatid);
@@ -57,6 +56,9 @@ else
       print "<br/>Сервис разрешён. Возможно создание нового чата.";
     }
   }
+  elseif ($res["blacklisted"]) {
+    print "<br/>Этот идентификатор в чёрном списке. Сервис запрещён навсегда.<br/>";
+  }
   else {
     $wait = floor($res["wait"]/60);
     $e = getNumEnding($wait, $endings);
@@ -70,7 +72,6 @@ else
   }
 }
 print "<br />Спасибо за интерес.";
-
 ?>
 </body>
 </html>

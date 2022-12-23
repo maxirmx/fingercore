@@ -5,7 +5,7 @@
  * @category fingerprint
  * @package fingercore
  * @subpackage main
- * @version 00.03.00
+ * @version 00.04.00
  * @author  Максим Самсонов <maxim@samsonov.net>
  * @copyright  2022 Максим Самсонов, его родственники и знакомые
  * @license    https://github.com/maxirmx/p.samsonov.net/blob/main/LICENSE MIT
@@ -22,7 +22,7 @@
  * @static
  * Package version
  */
-  protected static $pv = '00.03.00';
+  protected static $pv = '00.04.00';
 
 
 /**
@@ -108,8 +108,8 @@
 /**
  * Class WDb  Интерфейс к базе данных FingerCore
  */
- class WDb extends C2CBase
- {
+class WDb extends C2CBase
+{
 /**
  * Нет ошибки
  */
@@ -139,6 +139,7 @@
    protected $create = false;
    protected $protect = 7200;  // 60*60*2;
    protected $reconnect = 1800; // 30*60
+   protected $blacklist = NULL;
 
 /**
  * __construct Конструктор
@@ -147,17 +148,20 @@
  */
    function __construct($dbg = false)
    {
-     $this->dbg = $dbg;
+      $this->dbg = $dbg;
 
-     $ini = parse_ini_file("fingercore.ini", true);
-     if ($ini && $ini["database"]["path"] != NULL)   { $this->db = "sqlite:" . $ini["database"]["path"]; }
-     if ($ini && $ini["database"]["create"] != NULL) { $this->create = $ini["database"]["create"]; }
-     if ($ini && $ini["visit"]["protect"] != NULL)   { $this->protect = intval($ini["visit"]["protect"]); }
-     if ($ini && $ini["visit"]["reconnect"] != NULL)   { $this->reconnect = intval($ini["visit"]["reconnect"]); }
-
-     $this->debugOutput("Database: path='" . $this->db . "' create=" .  $this->create);
-     $this->debugOutput("Visit: protect=" . $this->protect . " reconnect=" .  $this->reconnect);
-
+      $ini = parse_ini_file("fingercore.ini", true);
+      if ($ini)
+      {
+        if ($ini["database"]["path"] != NULL)     { $this->db = "sqlite:" . $ini["database"]["path"]; }
+        if ($ini["database"]["create"] != NULL)   { $this->create = $ini["database"]["create"]; }
+        if ($ini["visit"]["protect"] != NULL)     { $this->protect = intval($ini["visit"]["protect"]); }
+        if ($ini["visit"]["reconnect"] != NULL)   { $this->reconnect = intval($ini["visit"]["reconnect"]); }
+        if ($ini["visit"]["reconnect"] != NULL)   { $this->reconnect = intval($ini["visit"]["reconnect"]); }
+        if ($ini["blacklist"]["path"] != NULL)    { $this->blacklist = $ini["blacklist"]["path"]; }
+      }
+      $this->debugOutput("Database: path='" . $this->db . "' create=" .  $this->create);
+      $this->debugOutput("Visit: protect=" . $this->protect . " reconnect=" .  $this->reconnect);
    }   // WDb::__construct
 
 /**
@@ -265,16 +269,42 @@ __SQL__
      return WDb::RWD_OK;
    }    // WDb::Connect
 
+
 /**
- * Query()
+ * QueryBlacklist()
  *
  * @param string $finger
  *
  */
-   public function Query($finger, $chatid) {
+  private function QueryBlacklist($finger)
+  {
+    $pos = false;
+    if ($this->blacklist != NULL) {
+      if ($file = @fopen($this->blacklist, "r")) {
+        while(!feof($file) && $pos === false) {
+            $line = fgets($file);
+            $pos = strpos($line, $finger);
+            $this->debugOutput("Blacklist: line '$line', fingerprint '$finger', pos '$pos'");
+          }
+        fclose($file);
+      }
+    }
+    return $pos;
+  }
+
+
+/**
+ * QueryDatabase()
+ *
+ * @param string $finger
+ * @param string $chatid
+ *
+ */
+  private function QueryDatabase($finger, $chatid) {
     $scenario = 'U';
     $this->debugOutput("Query: fingerprint '$finger', chatid '$chatid'");
-    try {
+    try
+    {
         $w = time() - $this->protect;
         $this->doExec("DELETE FROM Visits WHERE unixtime < '$w'");
         $visit = $this->doSearch("SELECT unixtime, chatid FROM Visits WHERE fingerprint ='$finger' ORDER BY unixtime ASC LIMIT 1", true);
@@ -313,16 +343,31 @@ __SQL__
             $res = array("ret"=>WDb::RWD_OK, "allow"=>false, "exist"=>false, "wait"=>$w);
           }
         }
-     }
-     catch (PDOException $e) {
+    }
+    catch (PDOException $e)
+    {
       $scenario = 'F';
       $this->pdoError($e);
-       $res = array("ret"=>WDb::RWD_DB_ERROR, "allow"=>true, "exist"=>false, "wait"=>0);
-     }
+      $res = array("ret"=>WDb::RWD_DB_ERROR, "allow"=>true, "exist"=>false, "wait"=>0);
+    }
     $res['scenario'] = $scenario;
-     return $res;
-    }    // WDb::Query
+    return $res;
+  }    // WDb::Query
 
+/**
+ * Query()
+ *
+ * @param string $finger
+ * @param string $chatid
+ *
+ */
+  public function Query($finger, $chatid) {
+    if ($this->QueryBlacklist($finger) === false)
+      $res = $this->QueryDatabase($finger, $chatid);
+    else
+      $res = array("ret"=>WDb::RWD_OK, "allow"=>false, "blacklisted"=>true, "scenario"=>'L');
+    return $res;
+  }
 
 /**
  * showDatabaseVersion() возвращает версию схемы базы данных.

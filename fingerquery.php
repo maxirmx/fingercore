@@ -15,7 +15,7 @@ $endings = array('минуту', 'минуты', 'минут');
 $finger = $_GET['finger'];
 $chatid = $_GET['chatid'];
 
-$debug = false;
+$debug = true;
 
 $rwd = new WDb($debug);
 $res = $rwd->Connect();

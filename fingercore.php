@@ -5,7 +5,7 @@
  * @category fingerprint
  * @package fingercore
  * @subpackage main
- * @version 00.04.00
+ * @version 00.05.00
  * @author  Максим Самсонов <maxim@samsonov.net>
  * @copyright  2022 Максим Самсонов, его родственники и знакомые
  * @license    https://github.com/maxirmx/p.samsonov.net/blob/main/LICENSE MIT
@@ -22,7 +22,7 @@
  * @static
  * Package version
  */
-  protected static $pv = '00.04.00';
+  protected static $pv = '00.05.00';
 
 
 /**
@@ -119,6 +119,11 @@ class WDb extends C2CBase
  */
    const RWD_E_INVALID_COMMAND  = -1;
 /**
+ * Код ошибки: Не удалось включить поддержку FOREIGN KEY
+ * (https://www.sqlite.org/foreignkeys.html)
+ */
+   const RWD_E_FOREIGN_KEY = -124;
+/**
  * Код ошибки: Ошибка формата ответа сервера
  * Используется только внутри клиентских приложений. Здесь приведено для контроля целостности кодов ошибок.
  */
@@ -177,6 +182,7 @@ class WDb extends C2CBase
                      WDb::RWD_DB_ERROR           => 'Database error',
                      WDb::RWD_E_INVALID_COMMAND  => 'Invalid command',
                      WDb::RWD_E_INVALID_RESPONSE => 'Invalid server response',
+                     WDb::RWD_E_FOREIGN_KEY      => 'No foreign key support',
                      WDb::RWD_OK                 => 'No error'
                    );
      return $msg[$c];
@@ -234,30 +240,49 @@ class WDb extends C2CBase
           $this->debugOutput("Opening database file at: " . $this->db);
           self::$dbh = new PDO($this->db);
 
+          $this->doExec("PRAGMA foreign_keys=ON");
+          if ($this->doSearch("PRAGMA foreign_keys") != 1) { return WDb::RWD_E_FOREIGN_KEY; }
+
           if ($this->create)
           {
+            $updated = false;
             if ($this->queryTable("Visits") === false) {
                 if ($this->doExec( <<< __SQL__
                       CREATE TABLE IF NOT EXISTS Visits  (
-                           id     INTEGER PRIMARY KEY,
+                           id          INTEGER PRIMARY KEY,
                            fingerprint CHAR[32] NOT NULL ON CONFLICT ABORT UNIQUE ON CONFLICT ABORT,
-                           chatid CHAR[32],
-                           unixtime INTEGER
+                           chatid      CHAR[32] NOT NULL ON CONFLICT ABORT UNIQUE ON CONFLICT ABORT,
+                           unixtime    INTEGER
                         )
 __SQL__
                       ) != 0) { return WDb::RWD_ERROR; }
+                $updated = true;
+            }
+            if ($this->queryTable("History") === false) {
+              if ($this->doExec( <<< __SQL__
+                    CREATE TABLE IF NOT EXISTS History  (
+                         id       INTEGER PRIMARY KEY,
+                         visit_id INTEGER REFERENCES Visits(id) ON DELETE CASCADE,
+                         step     INTEGER,
+                         message  TEXT
+                      )
+__SQL__
+                    ) != 0) { return WDb::RWD_ERROR; }
+                $updated = true;
             }
             if ($this->queryTable("Version") === false) {
-               if ($this->doExec( <<< __SQL__
+              if ($this->doExec( <<< __SQL__
                   CREATE TABLE Version  (
                        id INTEGER PRIMARY KEY,
                        version CHAR[16] NOT NULL ON CONFLICT ABORT UNIQUE ON CONFLICT ABORT
                      )
 __SQL__
                   )  != 0) { return WDb::RWD_ERROR; }
-
-                 if ($this->doExec("INSERT INTO Version (version) VALUES ('" . self::$pv . "')") !=1)  { return WDb::RWD_ERROR; }
-             }
+                $updated = true;
+            }
+          }
+          if ($updated) {
+            if ($this->doExec("REPLACE INTO Version (version) VALUES ('" . self::$pv . "')") !=1)  { return WDb::RWD_ERROR; }
           }
         }
      }
@@ -370,8 +395,22 @@ __SQL__
   }
 
 /**
- * showDatabaseVersion() возвращает версию схемы базы данных.
+ * StoreHistory()
  *
+ * @param string $finger
+ * @param string $chatid
+ *
+ */
+  public function StoreHistory($finger, $chatid) {
+    if ($this->QueryBlacklist($finger) === false)
+      $res = $this->QueryDatabase($finger, $chatid);
+    else
+      $res = array("ret"=>WDb::RWD_OK, "allow"=>false, "blacklisted"=>true, "scenario"=>'L');
+    return $res;
+  }
+
+/**
+ * showDatabaseVersion() возвращает версию схемы базы данных.
  * Версия берется из таблицы Version.
  *
  * @return string|int версия схемы базы данных или код ошибки
@@ -380,8 +419,7 @@ __SQL__
    {
      try
      {
-         $r = $this->doSearch("SELECT version FROM Version ORDER BY id DESC LIMIT 1");
-         return $r;
+         return $this->doSearch("SELECT version FROM Version ORDER BY id DESC LIMIT 1");
      }
      catch (PDOException $e)
      {
@@ -399,7 +437,10 @@ __SQL__
    {
      try
      {
-         return self::$dbh->getAttribute(PDO::ATTR_CLIENT_VERSION);
+         $v = self::$dbh->getAttribute(PDO::ATTR_CLIENT_VERSION);
+         $p = $this->doSearch("PRAGMA foreign_keys");
+         return "$v, foriegn key support: $p";
+
      }
      catch (PDOException $e)
      {

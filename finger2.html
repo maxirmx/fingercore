@@ -1,21 +1,21 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
-    <meta charset="win-1251">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <title>Fingerprinting</title>
     <script src="clientjs/client.base.min.js"></script>
 </head>
+
 <body>
 
 <h2>Fingerprint test</h2>
 
-При переходе по ссылке ниже имитируется запрос сервиса.<br/>
-Доступ к сервису из одного браузера разрешён не чаще, чем раз в 30 секунд.<br/>
-Если обновлять страницу, это будет имитация переприсоединения к существующему чату.<br/>
-Чтобы увидеть блокировку нужно сходить по ссылке "туда-обратно".<br/>
+<p>
+<a href="#" id="fingerquery">Service query</a><br/>
+<a href="#" id="fingerxhr">Ajax service query</a><br/>
+<a href="#" id="storehst">Ajax store history</a><br/>
+<a href="#" id="gethst">Ajax get history</a><br/>
 
-<p><a href="#" id="fingerquery">Запрос сервиса</a>
-<br/><a href="#" id="fingerxhr">Имитация AJAX</a></p>
 
 <script>
     function randomString(length) {
@@ -44,6 +44,8 @@
 
     document.getElementById("fingerquery").href="fingerquery.php?finger=" + fingerprint + "&chatid=" + randomString(16);
     document.getElementById("fingerxhr").href="fingerxhr.php?finger=" + fingerprint + "&chatid=" + randomString(16);
+    document.getElementById("storehst").href="storehst.php?history=РљР°РєР°СЏ-С‚Рѕ РёСЃС‚РѕСЂРёСЏ&chatid=" + randomString(16);
+    document.getElementById("gethst").href="gethst.php?chatid=" + randomString(16);
 
 </script>
 

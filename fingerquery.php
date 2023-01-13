@@ -1,10 +1,6 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-  <meta http-equiv="Cache-Control" content="no-cache, must-revalidate" />
-</head>
-<body>
 <?php
+header("Cache-Control: no-cache, must-revalidate");
+header('Content-type: text/html; charset=utf-8');
 /**
  * fingerquery.php
  */
@@ -15,7 +11,7 @@ $endings = array('минуту', 'минуты', 'минут');
 $finger = $_GET['finger'];
 $chatid = $_GET['chatid'];
 
-$debug = true;
+$debug = false;
 
 $rwd = new WDb($debug);
 $res = $rwd->Connect();
@@ -69,6 +65,7 @@ else
 
       $rwd->storeHistory($chatid,
         "<li class=\"message client sent\">Hello, pancake!
+        Это какая-то история
         Yes, let's continue. In recent days, nothing has bothered me as much as Honduras.
         You can say \"don't scratch it\", but I would like to get professional advice.</li>"
       );

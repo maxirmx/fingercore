@@ -12,7 +12,7 @@
    */
 
   header("Cache-Control: no-cache, must-revalidate");
-  header('Content-type: application/json');
+  header('Content-type: application/json; charset=utf-8');
 
   require(__DIR__. '/fingercore.php');
 

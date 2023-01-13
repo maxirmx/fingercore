@@ -402,26 +402,33 @@ __SQL__
  *
  */
   public function storeHistory($chatId, $newHistory) {
-    $res = $this->doSearch("SELECT id, history FROM History WHERE chatid ='$chatId' LIMIT 1", true);
-    if (count($res) == 0) {
-      $this->debugOutput("History for '$chatId' was not found");
-      $newHistory = self::$dbh->quote($newHistory);
-      $this->doExec("INSERT INTO History (chatid, history) VALUES ('$chatId', $newHistory)");
+    try {
+      $res = $this->doSearch("SELECT id, history FROM History WHERE chatid ='$chatId' LIMIT 1", true);
+      if (count($res) == 0) {
+        $this->debugOutput("History for '$chatId' was not found");
+        $newHistory = self::$dbh->quote($newHistory);
+        $this->doExec("INSERT INTO History (chatid, history) VALUES ('$chatId', $newHistory)");
+      }
+      else {
+      /* There is a risk of race condition.
+         The chat and its history may be deleted by other session, but in such case we rely
+        on FOREIGN KEY that will prevent update of a histoty for a chat that does not exist
+        anymore
+      */
+        $this->debugOutput("Appending history for '$chatId'");
+        $id=$res[0][0];
+        $oldHistory = $res[0][1];
+        $newHistory = self::$dbh->quote($oldHistory . $newHistory);
+        $r = $this->doExec("REPLACE INTO History (id, chatid, history) VALUES ('$id','$chatId', $newHistory)");
+      }
+      $hst=array("res"=>true, "written"=>$r);
     }
-    else {
-    /* There is a risk of race condition.
-       The chat and its history may be deleted by other session, but in such case we rely
-       on FOREIGN KEY that will prevent update of a histoty for a chat that does not exist
-       anymore
-    */
-      $this->debugOutput("Appending history for '$chatId'");
-      $id=$res[0][0];
-      $oldHistory = $res[0][1];
-      $newHistory = self::$dbh->quote($oldHistory . $newHistory);
-      $this->doExec("REPLACE INTO History (id, chatid, history) VALUES ('$id','$chatId', $newHistory)");
+    catch (PDOException $e)  {
+      $this->pdoError($e);
+      $hst=array("res"=>false, "written"=>null);
     }
+    return $hst;
   }
-
 /**
  * getHistory()
  *
@@ -429,14 +436,20 @@ __SQL__
  *
  */
 public function getHistory($chatId) {
-  $res = $this->doSearch("SELECT history FROM History WHERE chatid ='$chatId' LIMIT 1", true);
-  if (count($res) == 0) {
-    $this->debugOutput("History for '$chatId' was not found");
-    $hst = array("has"=>false);
+  try {
+    $res = $this->doSearch("SELECT history FROM History WHERE chatid ='$chatId' LIMIT 1", true);
+    if (count($res) == 0) {
+      $this->debugOutput("History for '$chatId' was not found");
+      $hst = array("has"=>false);
+    }
+    else {
+      $this->debugOutput("History for '$chatId':" . $res[0][0]);
+      $hst = array("has"=>true, "history"=>$res[0][0]);
+    }
   }
-  else {
-    $this->debugOutput("History for '$chatId':" . $res[0][0]);
-    $hst = array("has"=>true, "history"=>$res[0][0]);
+  catch (PDOException $e)  {
+    $this->pdoError($e);
+    $hst = array("has"=>false, "error"=>true);
   }
   return $hst;
 }

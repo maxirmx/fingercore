@@ -11,7 +11,7 @@
  * @license    https://github.com/maxirmx/p.samsonov.net/blob/main/LICENSE MIT
  */
 
-/**
+ /**
  * Class C2CBase
  *
  */
@@ -78,7 +78,7 @@
  */
    protected function doSearch($s, $array = false, $assoc = false)
    {
-     $this->debugOutput("Executing SQL:'" . $s . "'");
+     $this->debugOutput("Executing SQL:'$s'");
      $q = self::$dbh->query($s);
      $r = $q->fetchAll($assoc ? PDO::FETCH_ASSOC : PDO::FETCH_NUM);
      $q->closeCursor();
@@ -99,7 +99,7 @@
  */
    protected function doExec($s)
    {
-    $this->debugOutput("Executing SQL:'" . $s . "'");
+    $this->debugOutput("Executing SQL:'$s'");
     $r = self::$dbh->exec($s);
     return $r;
    }   // C2CBase::doExec
@@ -199,8 +199,8 @@ class WDb extends C2CBase
    private function queryTable($s)
    {
        $r = $this->doSearch("SELECT name FROM sqlite_master WHERE type = 'table' AND name = '$s'");
-       if ($r === false) { $this->debugOutput("Query table '" . $s . "': does not exist");      }
-       else              { $this->debugOutput("Query table '" . $s . "': exists");  $r = true;  }
+       if ($r === false) { $this->debugOutput("Query table '$s': does not exist");      }
+       else              { $this->debugOutput("Query table '$s': exists");  $r = true;  }
        return $r;
    }         // WDb::queryTable
 
@@ -215,6 +215,7 @@ class WDb extends C2CBase
    private function queryAllTables()
    {
      $this->queryTable("Version");
+     $this->queryTable("History");
      $this->queryTable("Visits");
    }         // WDb::queryAllTables
 
@@ -262,9 +263,8 @@ __SQL__
               if ($this->doExec( <<< __SQL__
                     CREATE TABLE IF NOT EXISTS History  (
                          id       INTEGER PRIMARY KEY,
-                         visit_id INTEGER REFERENCES Visits(id) ON DELETE CASCADE,
-                         step     INTEGER,
-                         message  TEXT
+                         chatid   CHAR[32] REFERENCES Visits(chatid) ON DELETE CASCADE,
+                         history  VARCHAR[255]
                       )
 __SQL__
                     ) != 0) { return WDb::RWD_ERROR; }
@@ -395,19 +395,51 @@ __SQL__
   }
 
 /**
- * StoreHistory()
+ * storeHistory()
  *
- * @param string $finger
- * @param string $chatid
+ * @param string $chatId
+ * @param string $newHistory
  *
  */
-  public function StoreHistory($finger, $chatid) {
-    if ($this->QueryBlacklist($finger) === false)
-      $res = $this->QueryDatabase($finger, $chatid);
-    else
-      $res = array("ret"=>WDb::RWD_OK, "allow"=>false, "blacklisted"=>true, "scenario"=>'L');
-    return $res;
+  public function storeHistory($chatId, $newHistory) {
+    $res = $this->doSearch("SELECT id, history FROM History WHERE chatid ='$chatId' LIMIT 1", true);
+    if (count($res) == 0) {
+      $this->debugOutput("History for '$chatId' was not found");
+      $newHistory = self::$dbh->quote($newHistory);
+      $this->doExec("INSERT INTO History (chatid, history) VALUES ('$chatId', $newHistory)");
+    }
+    else {
+    /* There is a risk of race condition.
+       The chat and its history may be deleted by other session, but in such case we rely
+       on FOREIGN KEY that will prevent update of a histoty for a chat that does not exist
+       anymore
+    */
+      $this->debugOutput("Appending history for '$chatId'");
+      $id=$res[0][0];
+      $oldHistory = $res[0][1];
+      $newHistory = self::$dbh->quote($oldHistory . $newHistory);
+      $this->doExec("REPLACE INTO History (id, chatid, history) VALUES ('$id','$chatId', $newHistory)");
+    }
   }
+
+/**
+ * getHistory()
+ *
+ * @param string $chatId
+ *
+ */
+public function getHistory($chatId) {
+  $res = $this->doSearch("SELECT history FROM History WHERE chatid ='$chatId' LIMIT 1", true);
+  if (count($res) == 0) {
+    $this->debugOutput("History for '$chatId' was not found");
+    $hst = array("has"=>false);
+  }
+  else {
+    $this->debugOutput("History for '$chatId':" . $res[0][0]);
+    $hst = array("has"=>true, "history"=>$res[0][0]);
+  }
+  return $hst;
+}
 
 /**
  * showDatabaseVersion() возвращает версию схемы базы данных.

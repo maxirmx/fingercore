@@ -51,6 +51,33 @@ else
     if (!empty($chatid)) {
       if ($res["exist"])  print "<br/>Сервис разрешён. Присоединение к существующему чату $chatid.<br/>";
       else                print "<br/>Сервис разрешён. Новый чат $chatid.<br/>";
+
+      $hst = $rwd->getHistory($chatid);
+      if ($hst["has"])
+        print "<br/>История для '$chatid':" . $hst["history"] . " <br />";
+      else
+        print "<br/>Для '$chatid' истории не найдено <br />";
+
+      $rwd->storeHistory($chatid,
+        "<li class=\"message support-agent replies\">Hello.
+        I am Maria, a virtual assistant, and I will help you find a psychologist.
+        All correspondence in this chat is completely anonymous and protected.
+        No one will know what you will be talking about here.
+        The process of selecting a psychologist for you will take less than 40 seconds.
+        Shall we continue?</li>"
+      );
+
+      $rwd->storeHistory($chatid,
+        "<li class=\"message client sent\">Hello, pancake!
+        Yes, let's continue. In recent days, nothing has bothered me as much as Honduras.
+        You can say \"don't scratch it\", but I would like to get professional advice.</li>"
+      );
+
+      $hst = $rwd->getHistory($chatid);
+      if ($hst["has"])
+        print "<br/>История для '$chatid':" . $hst["history"] . " <br />";
+      else
+        print "<br/>Для '$chatid' истории не найдено <br />";
     }
     else {
       print "<br/>Сервис разрешён. Возможно создание нового чата.";
